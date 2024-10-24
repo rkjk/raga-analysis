@@ -2,11 +2,30 @@ import pyaudio
 import numpy as np
 import matplotlib.pyplot as plt
 import librosa
-from collections import deque
+from collections import defaultdict
 import time
+from dataclasses import dataclass
 
 def get_current_time_microseconds():
     return int(time.time() * 1e6)
+
+def decompose_note(note: str):
+    # Get octave and base note
+    if not note:
+        return None, None
+    octave = int(note[-1]) if note[-1].isdigit() else None
+    base = note[:-1] if note[-1].isdigit() else note
+    return base, octave
+
+def is_complete_octave(bag: dict):
+    # Do we have 7 notes in one octave and one note in the next
+    if not bag:
+        return False, None
+    octaves_present_in_bag = list(sorted(bag.keys()))
+    for oct in octaves_present_in_bag[:-1]:
+        if len(bag[oct]) >= 7 and len(bag[oct + 1]) >= 1:
+            return True, oct
+    return False, None
 
 # Set up audio parameters
 FORMAT = pyaudio.paFloat32
@@ -14,49 +33,73 @@ CHANNELS = 1
 RATE = 44100
 CHUNK = int (0.020 * RATE) * 4  # 20 ms chunks x 4 bytes per sample
 
-# Set up plotting parameters
-fig, ax = plt.subplots()
-ax.set_title('Pitch Over Time')
-ax.set_xlabel('Time (seconds)')
-ax.set_ylabel('Pitch (Hz)')
-plt.ion()  # Turn on interactive mode
 
-# Initialize PyAudio
-p = pyaudio.PyAudio()
 
-history = deque(maxlen=1024)  # Store past pitches for smoothing
-start_time = None
+class LiveAudioDetect:
+    def __init__(self, forma, channels, rate, frames_per_buffer):
+        self.format = forma
+        self.channels = channels
+        self.rate = rate
+        self.frames_per_buffer = frames_per_buffer
+        self.initialize()
+        self.bag_of_notes = defaultdict(set)
+        
+    def __del__(self):
+        # Close the audio stream
+        if self.p is not None:
+            self.p.terminate()
 
-# Open the audio stream
-stream = p.open(format=FORMAT,
-                channels=CHANNELS,
-                rate=RATE,
-                input=True,
-                frames_per_buffer=CHUNK)
+    def initialize(self):
+        try:
+            self.p = pyaudio.PyAudio()
+        except Exception as e:
+            err = f"Could not initialize PyAudio: {e}"
+            raise RuntimeError(err)
+        
+        # Open the audio stream
 
-print("Starting real-time pitch detection...")
+    def start(self):
+        stream = self.p.open(
+            format=self.format,
+            channels=self.channels,
+            rate=self.rate,
+            input=True,
+            frames_per_buffer=self.frames_per_buffer)
+        print("Starting real-time pitch detection...")
+        while True:
+        # Read audio data from the stream - We need 10 frames per second
+        # we get rate samples per second
 
-while True:
-    # Read audio data from the stream
-    data = np.frombuffer(stream.read(CHUNK), dtype=np.float32)
-    #print(f'data size = {data.shape}')
-    
-    # Detect pitch using the PYin algorithm
-    ff, voiced_flag, voiced_prob = librosa.pyin(
-        data,
-        fmin = librosa.note_to_hz('A2'), 
-        fmax=librosa.note_to_hz('G#5'), 
-        sr=RATE,
-        frame_length=CHUNK)
-    #print(f'ff size = {len(ff)}')
+            data = np.frombuffer(stream.read(CHUNK), dtype=np.float32)
+        
+            # Detect pitch using the PYin algorithm
+            ff, voiced_flag, voiced_prob = librosa.pyin(
+                data,
+                fmin = librosa.note_to_hz('A2'), 
+                fmax=librosa.note_to_hz('G#5'), 
+                sr=RATE,
+                frame_length=CHUNK)
 
-    # Print the detected pitch
-    for k in range(len(ff)):
-        if voiced_flag[k] == True and voiced_prob[k] > 0.5:
-            print(f"Detected note: {librosa.hz_to_note(ff[k])}")
+            # Print the detected pitch
+            for k in range(len(ff)):
+                if voiced_flag[k] == True and voiced_prob[k] > 0.5:
+                    base, octave = decompose_note(librosa.hz_to_note(ff[k]))
+                    if octave is not None:
+                        self.bag_of_notes[octave].add(base)
+                        flag, oct = is_complete_octave(self.bag_of_notes)
+                        #if flag:
+                            #print(f"Svaras sung: {list(sorted(bag_of_notes[oct]))}")
+                    print(f"Detected note: {librosa.hz_to_note(ff[k])}")
 
-# Close the audio stream and PyAudio
-stream.stop_stream()
-stream.close()
-p.terminate()
+        stream.stop_stream()
+        stream.close()
+        p.terminate()
 
+if __name__ == "__main__":
+    # Set up audio parameters
+    FORMAT = pyaudio.paFloat32
+    CHANNELS = 1
+    RATE = 44100
+    CHUNK = int (0.020 * RATE) * 4  # 20 ms chunks x 4 bytes per sample
+    detect = LiveAudioDetect(FORMAT, CHANNELS, RATE, CHUNK)
+    detect.start()
