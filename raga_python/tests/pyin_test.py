@@ -33,7 +33,7 @@ class TestPYIN:
         RATE = 44100
         FRAME_LENGTH = 2048
         HOP_LENGTH = 512
-        pyin_pitch_detector = PYINPitchDetect(RATE, frame_length=2048, hop_length=512)
+        pyin_pitch_detector = PYINPitchDetect(RATE, frame_length=FRAME_LENGTH, hop_length=HOP_LENGTH)
         audio, sr = librosa.load('../data/TN Seshagopalan - Saveri Alapana [QDw-jpTw3Q4].wav', sr=44100, duration=10.0)
         pyin = PYINPitchDetect(sr, frame_length=FRAME_LENGTH, hop_length=HOP_LENGTH)
         pitches, voiced_flag, voiced_prob = pyin.detect(audio)
@@ -57,9 +57,9 @@ class TestPYIN:
     
     def test_mayamalavagowlai_ragasurabhi(self):
         RATE = 44100
-        FRAME_LENGTH = 2048
-        HOP_LENGTH = 512
-        pyin_pitch_detector = PYINPitchDetect(RATE, frame_length=2048, hop_length=512)
+        FRAME_LENGTH = 8192
+        HOP_LENGTH = 4096
+        pyin_pitch_detector = PYINPitchDetect(RATE, frame_length=FRAME_LENGTH, hop_length=HOP_LENGTH)
         audio, sr = librosa.load('../data/raga-mayamalavagowlai-arohanam_avarohanam.mp3', sr=44100)
         pyin = PYINPitchDetect(sr, frame_length=FRAME_LENGTH, hop_length=HOP_LENGTH)
         pitches, voiced_flag, voiced_prob = pyin.detect(audio)
@@ -70,6 +70,7 @@ class TestPYIN:
             if voiced_flag[i]:
                 note = librosa.hz_to_note(pitches[i]).replace('♯', '#')
                 svara = note_to_svara[note]
+                #svara = note
                 music_pitches.append(svara)
                 music_probs.append(voiced_prob[i])
         last_seen = None
