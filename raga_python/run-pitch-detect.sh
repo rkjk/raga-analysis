@@ -3,5 +3,5 @@
 set -euo pipefail
 
 source venv/bin/activate
-python pitch-detect.py
+python src/live.py
 deactivate
