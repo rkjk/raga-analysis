@@ -1,3 +1,5 @@
+from numpy import arange
+
 def get_current_time_microseconds():
     return int(time.time() * 1e6)
 
@@ -18,3 +20,8 @@ def is_complete_octave(bag: dict):
         if len(bag[oct]) >= 7 and len(bag[oct + 1]) >= 1:
             return True, oct
     return False, None
+
+# Calculate the starting timestamp of each frame for which pitch is computed
+def get_timestamps(pitches: list, hop_length: int, sr: int) -> list:
+    num_frames =  len(pitches)
+    return arange(num_frames) * hop_length * 1.0 / sr

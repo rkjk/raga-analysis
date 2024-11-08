@@ -1,6 +1,7 @@
 pyaudio
 librosa
 numpy
-matplotlib
 pytest
 pytest-xdist
+noisereduce
+soundfile

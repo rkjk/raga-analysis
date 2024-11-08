@@ -1,5 +1,5 @@
 #!/bin/bash
 
 source venv/bin/activate
-pytest
+pytest -rP
 deactivate
