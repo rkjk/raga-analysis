@@ -3,10 +3,13 @@ from src.chroma_detect import *
 from src.utils import *
 
 import os
+import time
 import librosa
 from numpy import argmax
 import noisereduce as nr
 import soundfile as sf
+import concurrent.futures
+
 import pytest
 
 seshu_map = {
@@ -35,6 +38,8 @@ note_to_svara = {
     'C7': 'S'
 }
 
+NOT_VOICE_TOKEN = '<N>'
+
 class TestPYIN:
     @pytest.mark.skip(reason="Temporarily disabled for demonstration purposes")
     def test_10_seconds_saveri_alapana_tnseshagopalan(self):
@@ -55,12 +60,58 @@ class TestPYIN:
             svara = ''
             if voiced_flag[i]:
                 note = librosa.hz_to_note(pitches[i]).replace('♯', '#')
-                svara = note_to_svara[note]
+                #svara = note_to_svara[note]
+                svara = note
             if vp > 0.5:
                 music_pitches.append((timestamp, vp, svara))
+            else:
+                music_pitches.append((timestamp, vp, NOT_VOICE_TOKEN))
         with open("tests/test_10_seconds_saveri_alapana_tnseshagopalan.txt", "w") as f:
             f.writelines([str(round(item[0], 3)) + ',' + str(round(item[1], 3)) + "," + item[2] + "\n" for item in music_pitches])
+
+    def pitch_shift_helper(self, audio, sr, n_steps, outfile):
+        shifted = librosa.effects.pitch_shift(audio, sr=sr, n_steps=n_steps)
+        sf.write(outfile, shifted, sr)
+
+    #@pytest.mark.skip(reason="Temporarily disabled for demonstration purposes")
+    def test_pitch_change(self):
+        RATE = 44100
+        FRAME_LENGTH = 2048
+        HOP_LENGTH = 512
+        audio, sr = librosa.load('../data/simple-test/saveri/saveri.mp3', sr=44100)
+        
+        results = {}
+        inputs = [
+            (-1, '../data/simple-test/saveri/new_audio_minus_1.mp3'),
+            (-2, '../data/simple-test/saveri/new_audio_minus_2.mp3'),
+            (1, '../data/simple-test/saveri/new_audio_plus_1.mp3'),
+            (2, '../data/simple-test/saveri/new_audio_plus_2.mp3')
+            ]
+
+        start_time = time.time()
+        print(f'Before submission')
+        with concurrent.futures.ProcessPoolExecutor(max_workers=4) as executor:
+            for i, inp in enumerate(inputs):
+                results[executor.submit(self.pitch_shift_helper, audio, sr, inp[0], inp[1])] = inp
+                print(f'submitted {i} at {int( (time.time() - start_time) * 1000)}')
+        
+            print(f'waiting for results at {int( (time.time() - start_time) * 1000)}....')
+            for future in concurrent.futures.as_completed(results):
+                inp = results[future]
+                print(f'written to {inp[1]} after {int( (time.time() - start_time) * 1000)}')
+
+        # new_audio_minus_1 = librosa.effects.pitch_shift(audio, sr=sr, n_steps=-1)
+        # output_1 = '../data/simple-test/new_audio_minus_1.mp3'
+        # sf.write(output_1, new_audio_minus_1, sr)
+
+        # new_audio_plus_2 = librosa.effects.pitch_shift(audio, sr=sr, n_steps=2)
+        # output_2 = '../data/simple-test/new_audio_plus_2.mp3'
+        # sf.write(output_1, new_audio_plus_2, sr)
+        
+
+
     
+    @pytest.mark.skip(reason="Temporarily disabled for demonstration purposes")
     def test_mayamalavagowlai_ragasurabhi(self):
         RATE = 44100
         FRAME_LENGTH = 8192
@@ -79,14 +130,16 @@ class TestPYIN:
             vp = voiced_prob[i]
             svara = ''
             if voiced_flag[i]:
-                #note = librosa.hz_to_note(pitches[i]).replace('♯', '#')
+                note = librosa.hz_to_note(pitches[i]).replace('♯', '#')
+                svara = note
                 #svara = note_to_svara[note]
-                svara = str(round(pitches[i], 2))
+                #svara = str(round(pitches[i], 2))
             if vp > 0.5:
                 music_pitches.append((timestamp, vp, svara))
         with open("tests/test_mayamalavagowlai_ragasurabhi.txt", "w") as f:
             f.writelines([str(round(item[0], 3)) + ',' + str(round(item[1], 3)) + "," + item[2] + "\n" for item in music_pitches])
 
+    @pytest.mark.skip(reason="Temporarily disabled for demonstration purposes")
     def test_mayamalavagowlai_ragasurabhi_chroma(self):
         RATE = 44100
         FRAME_LENGTH = 8192
@@ -130,6 +183,7 @@ class TestPYIN:
         with open("tests/sai-giridhar-mridangam.txt", "w") as f:
             f.writelines([str(round(item[0], 3)) + ',' + str(round(item[1], 3)) + "," + item[2] + "\n" for item in music_pitches])
 
+    @pytest.mark.skip(reason="Temporarily disabled for demonstration purposes")
     def test_mayamalavagowlai_raghav_scales(self):
         RATE = 44100
         FRAME_LENGTH = 8192
