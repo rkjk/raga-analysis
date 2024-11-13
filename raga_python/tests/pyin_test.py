@@ -71,14 +71,24 @@ class TestPYIN:
 
     def pitch_shift_helper(self, audio, sr, n_steps, outfile):
         shifted = librosa.effects.pitch_shift(audio, sr=sr, n_steps=n_steps)
-        sf.write(outfile, shifted, sr)
+        print(f'Shifted {outfile}')
+        pitches, voiced_flag, voiced_prob = librosa.pyin(
+                shifted,
+                fmin=librosa.note_to_hz('C2'), 
+                fmax=librosa.note_to_hz('C6'),
+                sr=44100,
+                frame_length=2048,
+                hop_length=512
+            )
+        print(f'generated pitches for {outfile}')
+        #sf.write(outfile, shifted, sr)
 
     #@pytest.mark.skip(reason="Temporarily disabled for demonstration purposes")
     def test_pitch_change(self):
         RATE = 44100
         FRAME_LENGTH = 2048
         HOP_LENGTH = 512
-        audio, sr = librosa.load('../data/simple-test/saveri/saveri.mp3', sr=44100)
+        audio, sr = librosa.load('../data/simple-test/saveri/tmk-saveri.mp3', sr=44100)
         
         results = {}
         inputs = [
