@@ -69,7 +69,7 @@ class ConcurrentDatasetBuilder:
         if max_workers is not None:
             self.max_workers = max_workers
         else:
-            self.max_workers = os.cpu_count()
+            self.max_workers = 8
         #self.executor = concurrent.futures.ProcessPoolExecutor(max_workers=self.max_workers)
         print(f'Using {self.max_workers} CPU cores')
         self.sr = sr
@@ -99,6 +99,13 @@ class ConcurrentDatasetBuilder:
             if last_line != END_OF_FILE_TOKEN:
                 print(f'File {relative_path} is incomplete')
                 return True
+        return False
+    
+    @staticmethod
+    def check_file_exists(output_file_relative_path: str):
+        if os.path.isfile(output_file_relative_path) and not ConcurrentDatasetBuilder.check_file_empty_or_incomplete(output_file_relative_path):
+            return True
+        return False
 
     @staticmethod
     def process_raga_file_helper(audio, output_file_relative_path, dry_run=False):
@@ -110,7 +117,7 @@ class ConcurrentDatasetBuilder:
             pitches, voiced_flag, voiced_prob = librosa.pyin(
                 audio,
                 fmin=librosa.note_to_hz('C2'), 
-                fmax=librosa.note_to_hz('C6'),
+                fmax=librosa.note_to_hz('B5'),
                 sr=44100,
                 frame_length=2048,
                 hop_length=512
@@ -129,7 +136,9 @@ class ConcurrentDatasetBuilder:
             
             #print(f'Writing to {output_file_relative_path}')
             if not dry_run:
-                with open(output_file_relative_path, 'w'):
+                directory_path = os.path.dirname(output_file_relative_path)
+                os.makedirs(directory_path, exist_ok=True)
+                with open(output_file_relative_path, 'w') as f:
                     f.writelines([str(round(item[0], 3)) + ',' + str(round(item[1], 3)) + "," + item[2] + "\n" for item in music_pitches])
                     f.write(END_OF_FILE_TOKEN)
                     print(f'SUCCESS: Written to {output_file_relative_path}')
@@ -157,28 +166,34 @@ class ConcurrentDatasetBuilder:
             #pyin = PYINPitchDetect(self.sr, frame_length=self.frame_length, hop_length=self.hop_length)
 
             with concurrent.futures.ProcessPoolExecutor(max_workers=self.max_workers) as executor:
-            # Main track
+                # Main track
                 output_file_path = os.path.join(output_file_dir, f_name)
-                results[executor.submit(ConcurrentDatasetBuilder.process_raga_file_helper, audio, output_file_path, dry_run)] = output_file_path
+                if not self.check_file_exists(output_file_path):
+                    results[executor.submit(ConcurrentDatasetBuilder.process_raga_file_helper, audio, output_file_path, dry_run)] = output_file_path
+                else:
+                    print(f'Skipping {output_file_path}')
 
                 #Shifted Tonics
                 for n_steps in shift_tonics:
-                    shifted = librosa.effects.pitch_shift(audio, sr=self.sr, n_steps=n_steps)
                     n_steps_abs = abs(n_steps)
                     sf_name = '_'.join([f_name, "minus", str(n_steps_abs)]) if n_steps < 0 else '_'.join([f_name, "plus", str(n_steps_abs)])
                     sf_output_file_path = os.path.join(output_file_dir, sf_name)
+                    if self.check_file_exists(sf_output_file_path):
+                        print(f'Skipping {sf_output_file_path}')
+                        continue
+                    shifted = librosa.effects.pitch_shift(audio, sr=self.sr, n_steps=n_steps)
                     results[executor.submit(ConcurrentDatasetBuilder.process_raga_file_helper, shifted, sf_output_file_path, dry_run)] = sf_output_file_path
                 for future in concurrent.futures.as_completed(results):
                     pass
-            print(f'Completed {raga_file_data.relative_path} in {int( (time.time() - start_time) * 1000)} seconds')
+            print(f'Completed {raga_file_data.relative_path} in {int( (time.time() - start_time) * 1000)} ms')
         except Exception as ex:
             err = f'Error processing file {raga_file_data.relative_path}: {ex}'
             raise RuntimeError(err)
 
-    def process_all(self, dry_run):
-        saveri_raga_files = self.metadata['saveri']
-        for f in saveri_raga_files:
-            self.process_raga_file(f, dry_run=dry_run)        
+    def process_all(self, dry_run):       
+        for k, files in self.metadata.items():
+            for f in files:
+                self.process_raga_file(f, dry_run=dry_run)
 
 
     # get all subdirectories in a given directory
@@ -235,7 +250,7 @@ if __name__ == "__main__":
     parser.add_argument('--input_dir', help='Location containing subdirectories for each raga with data')
     parser.add_argument('--output_dir', help='Location where pitch data will be written')
     parser.add_argument('--max_workers', help='Number of worker. Default is 16')
-    parser.add_argument('--dry_run', help='Number of worker. Default is True')
+    parser.add_argument('--dry_run', help='Number of worker. Default is False')
     args = parser.parse_args()
     if args.input_dir is None:
         err = f'input_dir param is mandatory'
@@ -243,7 +258,7 @@ if __name__ == "__main__":
     if args.output_dir is None:
         err = f'output_dir param is mandatory'
         raise Exception(err)
-    dry_run = args.dry_run if args.dry_run is not None else True
+    dry_run = args.dry_run if args.dry_run is not None else False
     dataset_builder = ConcurrentDatasetBuilder(args.input_dir, args.output_dir, max_workers=args.max_workers)
     #print(f'{dataset_builder.get_metadata()}')
     dataset_builder.process_all(dry_run)
