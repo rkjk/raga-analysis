@@ -15,7 +15,6 @@ class PYINPitchDetect:
     
     def detect(self, data):
         try:
-            print(f'Starting pitch detection')
             return pyin(
                     data,
                     fmin=self.fmin, 
