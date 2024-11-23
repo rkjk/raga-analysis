@@ -139,16 +139,25 @@ def process_audio():
         #chunk = np.array(buffer[:chunk_size])
         # Your processing logic here
         pitches, voiced_flag, voiced_prob = pitch_detector.detect(np.array(buffer))
+        buffer = []
         for i in range(len(pitches)):
             svara = NOT_VOICE_TOKEN
             if voiced_flag[i] and voiced_prob[i] > 0.5:
                 svara = librosa.hz_to_note(pitches[i]).replace('♯', '#')
             music_pitches.append(svara)
+        prev_data = None
+        print(f'len of data: {len(music_pitches)}')
         if len(music_pitches) >= 2700:
+            data = music_pitches[:2700]
+            music_pitches = music_pitches[2700:]
+            prev_data = data
+            data = [stoi[t] for t in data]
+            not_voice_count = data.count(0)
+            if not_voice_count >= 2600:
+                print(f'Prediction: NOT_VOICE. Count {not_voice_count}')
+                continue
+            print(data)
             with torch.no_grad():
-                data = music_pitches[:2700]
-                music_pitches = music_pitches[2700:]
-                data = [stoi[t] for t in data]
                 data = torch.tensor(data).view(1,-1)
                 logits = model(data)
                 probabilities = torch.softmax(logits, dim=1)
@@ -159,7 +168,7 @@ def process_audio():
 
 def capture_audio():
     RATE = 44100
-    #CHUNK = int (0.020 * RATE) * 4  # 20 ms chunks x 4 bytes per sample
+    #CHUNK = int (0.010 * RATE) * 4  # 20 ms chunks x 4 bytes per sample
     CHUNK=RATE
     # Read 1 second of data in one frame
     p = pyaudio.PyAudio()

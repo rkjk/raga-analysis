@@ -1,7 +1,7 @@
 from librosa import pyin, note_to_hz
 
 class PYINPitchDetect:
-    def __init__(self, sr, fmin=note_to_hz('C2'), fmax=note_to_hz('C7'), frame_length=None, hop_length=None):
+    def __init__(self, sr, fmin=note_to_hz('C2'), fmax=note_to_hz('B5'), frame_length=None, hop_length=None):
         if not sr:
             raise RuntimeError("Sample rate not specified")
         if not frame_length:
