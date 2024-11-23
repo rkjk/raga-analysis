@@ -25,12 +25,11 @@ stoi, itos, vocab_size = utils.get_tokenizer()
 raga_map = utils.get_classes()
 
 def process_audio():
-    SAMPLE_RATE = 44100
-    chunk_size = SAMPLE_RATE  # 30 seconds of audio
+    chunk_size = utils.SAMPLE_RATE  # 30 seconds of audio
     buffer = []
 
     ### Pitch Detector
-    pitch_detector = PYINPitchDetect(SAMPLE_RATE, frame_length=2048, hop_length=512)
+    pitch_detector = PYINPitchDetect(utils.SAMPLE_RATE, frame_length=2048, hop_length=512)
 
 
     # Model

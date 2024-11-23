@@ -1,5 +1,6 @@
 from numpy import arange
 
+SAMPLE_RATE=44100
 NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 NOT_VOICE_TOKEN = '<N>'
 END_OF_FILE_TOKEN = '<EOF>'
