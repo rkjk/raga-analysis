@@ -8,7 +8,7 @@ from model.cnn1d import *
 from pyin_pitch_detect import *
 import utils
 
-def infer(model, raga_name, raga_path):
+def infer(model, raga_name, raga_path, device):
     # Training code here
     #print(f'name = {raga_name}, path={raga_path}')
     pitch_detector = PYINPitchDetect(utils.SAMPLE_RATE, frame_length=2048, hop_length=512)
@@ -26,6 +26,7 @@ def infer(model, raga_name, raga_path):
     incorrect_frames = 0
     for f in files:
         #print(f'Processing file {f}')
+        #print(f'Model device: {next(model.parameters()).device}')
         path = os.path.join(raga_path, f)
         audio, _ = librosa.load(path,sr=utils.SAMPLE_RATE)
         pitches, voiced_flag, voiced_prob = pitch_detector.detect(audio)
@@ -56,7 +57,7 @@ def infer(model, raga_name, raga_path):
                 correct_frames += 1
                 continue
             with torch.no_grad():
-                data = torch.tensor(data).view(1,-1).to('cpu')
+                data = torch.tensor(data).view(1,-1).to(device)
                 logits = model(data)
                 #print(f'{f} -> Completed inference')
                 probabilities = torch.softmax(logits, dim=1)
@@ -97,9 +98,10 @@ if __name__ == '__main__':
 
     lr = 0.001
     epochs = 0
-    model = ConvNet_1D(in_channels, out_channels, kernel_size, n_embd, n_tokens, device='cpu')
+    device = 'cuda:0'
+    model = ConvNet_1D(in_channels, out_channels, kernel_size, n_embd, n_tokens, device='cuda:0')
     MODEL_PATH = './models/simple-test-model'
-    checkpoint = torch.load(MODEL_PATH, map_location='cpu')
+    checkpoint = torch.load(MODEL_PATH)
     epochs = checkpoint['epochs']
     train_loss = checkpoint['train_loss']
     val_loss = checkpoint['val_loss']
@@ -108,7 +110,7 @@ if __name__ == '__main__':
     print(f'val loss: {val_loss}')
     model.load_state_dict(checkpoint['model_state_dict'])
     model.eval()
-    model.share_memory()  # Share the model on CPU
+    #model.share_memory()  # Share the model on CPU
 
     processes = []
     input_dir = "../data/simple-test/ragasurabhi"
@@ -120,7 +122,7 @@ if __name__ == '__main__':
             print(f'{raga_name} not in CLASS_NAMES')
             continue
         #p = mp.Process(target=infer, args=(model, raga_name, raga))
-        t, c, i = infer(model, raga_name, raga)
+        t, c, i = infer(model, raga_name, raga, device)
         print(f'Raga {raga_name} -> total_frames={t}, correct_frames={c}, incorrect={i}, percent_correct={c/t}')
         #p.start()
         #processes.append(p)
