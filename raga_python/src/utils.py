@@ -1,5 +1,15 @@
 from numpy import arange
 
+NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
+NOT_VOICE_TOKEN = '<N>'
+END_OF_FILE_TOKEN = '<EOF>'
+BLOCK_SIZE = 87 * 30 + 90
+# CLASS NAMES - NOTE: Do not change numbering.
+CLASS_NAMES = {
+    'saveri': 0,
+    'hemavati': 1
+}
+
 def get_current_time_microseconds():
     return int(time.time() * 1e6)
 
@@ -25,3 +35,25 @@ def is_complete_octave(bag: dict):
 def get_timestamps(pitches: list, hop_length: int, sr: int) -> list:
     num_frames =  len(pitches)
     return arange(num_frames) * hop_length * 1.0 / sr
+
+def get_tokenizer():
+    # Tokenizer
+    ALLOWED_TOKENS = []
+    for octave in [2,3,4,5]:
+        o = str(octave)
+        for n in NOTES:
+            ALLOWED_TOKENS.append(n+o)
+
+    stoi = {s:i+1 for i,s in enumerate(ALLOWED_TOKENS)}
+    stoi[NOT_VOICE_TOKEN] = 0
+    itos = {i:s for s,i in stoi.items()}
+    vocab_size = len(itos)
+    return stoi, itos, vocab_size
+
+def get_classes():
+    reverse_map = {}
+    for k,v in CLASS_NAMES.items():
+        if v in reverse_map:
+            raise RuntimeError(f'Duplicate key found {k} -> {v} -> {reverse_map[v]}')
+        reverse_map[v] = k
+    return reverse_map

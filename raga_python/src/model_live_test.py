@@ -11,6 +11,9 @@ import os
 import torch
 
 from pyin_pitch_detect import *
+import utils
+
+from model.cnn1d import ConvNet_1D
 
 audio_queue = Queue()
 
@@ -18,78 +21,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 # Tokenizer
-NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
-NOT_VOICE_TOKEN = '<N>'
-END_OF_FILE_TOKEN = '<EOF>'
-
-ALLOWED_TOKENS = []
-for octave in [2,3,4,5]:
-    o = str(octave)
-    for n in NOTES:
-        ALLOWED_TOKENS.append(n+o)
-
-stoi = {s:i+1 for i,s in enumerate(ALLOWED_TOKENS)}
-stoi[NOT_VOICE_TOKEN] = 0
-itos = {i:s for s,i in stoi.items()}
-vocab_size = len(itos)
-
-class ConvNet_1D(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, n_embd, n_tokens, device='cpu', dropout=0.1):
-        super().__init__()
-        self.emb = nn.Embedding(n_tokens, n_embd, device=device)
-        self.ConvNet = nn.Sequential(
-            nn.Conv1d(n_embd, 32, kernel_size=kernel_size, device=device),
-            nn.ReLU(),
-            nn.BatchNorm1d(32, device=device),
-            nn.MaxPool1d(kernel_size=5),
-
-            nn.Conv1d(32, 64, kernel_size=kernel_size, device=device),
-            nn.ReLU(),
-            nn.BatchNorm1d(64, device=device),
-            nn.MaxPool1d(kernel_size=5),
-
-            nn.Conv1d(64, 128, kernel_size=kernel_size, device=device),
-            nn.ReLU(),
-            nn.BatchNorm1d(128, device=device),
-            nn.MaxPool1d(kernel_size=5),
-
-            nn.Conv1d(128, 256, kernel_size=kernel_size, device=device),
-            nn.ReLU(),
-            nn.BatchNorm1d(256, device=device),
-            nn.MaxPool1d(kernel_size=5),
-            nn.Dropout(dropout),
-
-            nn.Flatten()
-        )
-
-         #Fully connected layers for regression or classification
-        self.task = nn.Sequential(
-            nn.Linear(768, 100, device=device),
-            nn.Dropout(dropout),
-            nn.ReLU(),
-            nn.Linear(100, out_channels, device=device)
-        )
-
-    def calculate_output_size(self, in_channels, kernel_size, stride, padding):
-        # Calculate the output size after multiple convolutional and pooling layers
-        output_size = (in_channels - kernel_size + 2 * padding) // stride + 1
-        #print(f'output_size {output_size}')
-        output_size = (output_size - kernel_size + 2 * padding) // stride + 1
-        #print(f'output_size {output_size}')
-        output_size = (output_size - kernel_size + 2 * padding) // stride + 1
-        #print(f'output_size {output_size}')
-        output_size = (output_size - kernel_size + 2 * padding) // stride + 1
-        #print(f'output_size {output_size}')
-        return output_size
-
-    def forward(self, x):
-        x = self.emb(x)
-        sequence_length = x.shape[2]
-        minibatch_length = x.shape[0]
-        x = x.view(minibatch_length, sequence_length, -1)
-        x = self.ConvNet(x)
-        output = self.task(x)
-        return output
+stoi, itos, vocab_size = utils.get_tokenizer()
+raga_map = utils.get_classes()
 
 def process_audio():
     SAMPLE_RATE = 44100
@@ -135,13 +68,10 @@ def process_audio():
                 time.sleep(0.1)
                 continue
         # Process the 30-second chunk
-        #print(f'buffer shape {buffer.shape}')
-        #chunk = np.array(buffer[:chunk_size])
-        # Your processing logic here
         pitches, voiced_flag, voiced_prob = pitch_detector.detect(np.array(buffer))
         buffer = []
         for i in range(len(pitches)):
-            svara = NOT_VOICE_TOKEN
+            svara = utils.NOT_VOICE_TOKEN
             if voiced_flag[i] and voiced_prob[i] > 0.5:
                 svara = librosa.hz_to_note(pitches[i]).replace('♯', '#')
             music_pitches.append(svara)
@@ -163,7 +93,7 @@ def process_audio():
                 probabilities = torch.softmax(logits, dim=1)
                 print(f'probs: {probabilities}')
                 max_prob, max_index = logits.max(dim=1)
-                print(f'Prediction: {max_index}, prediction_prob: {max_prob}')
+                print(f'Prediction: {raga_map[max_index.item()]}, prediction_prob: {max_prob}')
         #print(f'Processed chunk. Pitches len {pitches.shape}, {len(voiced_flag)}, {len(voiced_prob)}')
 
 def capture_audio():
