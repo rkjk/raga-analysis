@@ -39,7 +39,7 @@ def process_audio():
     stride = 1       # Stride
     padding = 0      # Padding
     n_tokens = vocab_size
-    n_embd = 24
+    n_embd = 8
 
     # Learning rate
     lr = 0.001

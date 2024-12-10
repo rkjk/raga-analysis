@@ -5,6 +5,7 @@ import os
 import librosa
 
 from model.cnn1d import *
+from model.lstm1 import *
 from pyin_pitch_detect import *
 import utils
 
@@ -28,16 +29,23 @@ def infer(model, raga_name, raga_path, device):
         #print(f'Processing file {f}')
         #print(f'Model device: {next(model.parameters()).device}')
         path = os.path.join(raga_path, f)
+        if not os.path.isfile(path) or not f.endswith('.mp3'):
+            continue
         audio, _ = librosa.load(path,sr=utils.SAMPLE_RATE)
         pitches, voiced_flag, voiced_prob = pitch_detector.detect(audio)
         #print(f'Detected pitches for {f}')
         music_pitches = []
+        ######################
+        ### Remove NOT_VOICE_TOKEN
+        ######################
+        #pitches = [p for p in pitches if p != utils.NOT_VOICE_TOKEN]
         for i in range(len(pitches)):
             svara = utils.NOT_VOICE_TOKEN
             if voiced_flag[i] and voiced_prob[i] > 0.5:
                 svara = librosa.hz_to_note(pitches[i]).replace('♯', '#')
             music_pitches.append(svara)
-        music_pitches = pad_with_not_voice(music_pitches)
+        #music_pitches = pad_with_not_voice(music_pitches)
+        music_pitches = [p for p in music_pitches if p != utils.NOT_VOICE_TOKEN]
         music_pitches = [stoi[x] for x in music_pitches]
         #print(f'Length: {len(music_pitches)} NumFrames: {len(music_pitches) // 2700}')  
         i = 0
@@ -49,12 +57,14 @@ def infer(model, raga_name, raga_path, device):
             if i + 2700 < len(music_pitches):
                 data = music_pitches[i:i+2700]
             else:
-                data = pad_with_not_voice(music_pitches[i:])
+                #data = pad_with_not_voice(music_pitches[i:])
+                total_frames -= 1
+                break
             i += 2700
             not_voice_count = data.count(0)
-            if not_voice_count >= 2600:
-                #print(f'File: {f} -> Prediction: NOT_VOICE. Count {not_voice_count}')
-                correct_frames += 1
+            if not_voice_count > 0:
+                print(f'File: {f} -> Prediction: NOT_VOICE. Count {not_voice_count}')
+                total_frames -= 1
                 continue
             with torch.no_grad():
                 data = torch.tensor(data).view(1,-1).to(device)
@@ -94,13 +104,19 @@ if __name__ == '__main__':
     stride = 1       # Stride
     padding = 0      # Padding
     n_tokens = vocab_size
-    n_embd = 24
+    n_embd = 8
 
-    lr = 0.001
-    epochs = 0
+    # LSTM
+    hidden_size = 32
+    num_layers = 2
+
+    #lr = 0.001
+    #epochs = 0
     device = 'cuda:0'
     model = ConvNet_1D(in_channels, out_channels, kernel_size, n_embd, n_tokens, device='cuda:0')
-    MODEL_PATH = './models/simple-test-model'
+    #model = LSTMNet(out_channels, n_embd, n_tokens, hidden_size, num_layers, device='cuda:0', dropout=0.1)
+
+    MODEL_PATH = './models/cnn-1-adam-1e3-epochs-[230000]'
     checkpoint = torch.load(MODEL_PATH)
     epochs = checkpoint['epochs']
     train_loss = checkpoint['train_loss']
@@ -113,7 +129,7 @@ if __name__ == '__main__':
     #model.share_memory()  # Share the model on CPU
 
     processes = []
-    input_dir = "../data/simple-test/ragasurabhi"
+    input_dir = "../data/simple-test/test"
     ragas = get_subdirectories(input_dir)
     print(ragas)
     for raga in ragas:
