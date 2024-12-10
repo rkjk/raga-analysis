@@ -2,6 +2,8 @@ import torch
 import torch.multiprocessing as mp
 
 import os
+from concurrent.futures import ProcessPoolExecutor, as_completed
+import pprint
 import librosa
 
 from model.cnn1d import *
@@ -14,6 +16,7 @@ def infer(model, raga_name, raga_path, device):
     #print(f'name = {raga_name}, path={raga_path}')
     pitch_detector = PYINPitchDetect(utils.SAMPLE_RATE, frame_length=2048, hop_length=512)
     stoi, itos, _ = utils.get_tokenizer()
+    raga_map = utils.get_classes()
 
     def pad_with_not_voice(buf):
         if len(buf) < 2700:
@@ -77,10 +80,44 @@ def infer(model, raga_name, raga_path, device):
                 if predicted_raga == raga_name:
                     correct_frames += 1
                 else:
-                    incorrect_frames += 1
+                    incorrect_frames += 1        #p = mp.Process(target=infer, args=(model, raga_name, raga))
+
                 #print(f'File: {f} -> Prediction: {predicted_raga}')
             frame += 1
     return total_frames, correct_frames, incorrect_frames
+
+def infer_model(model_path, model, device):
+    print(f'Inferring path {model_path}')
+    #MODEL_PATH = './models/cnn-1-adam-1e3-epochs-[230000]'
+    checkpoint = torch.load(model_path)
+    epochs = checkpoint['epochs']
+    train_loss = checkpoint['train_loss']
+    val_loss = checkpoint['val_loss']
+
+    output = {'ragas': {}}
+    output['checkpoint after epoch'] = epochs
+    output['train loss'] = train_loss
+    output['val loss'] = val_loss
+    model.load_state_dict(checkpoint['model_state_dict'])
+    model.eval()
+    #model.share_memory()  # Share the model on CPU
+    input_dir = "../data/simple-test/test"
+    ragas = get_subdirectories(input_dir)
+    #print(ragas)
+    for raga in ragas:
+        raga_name = os.path.basename(raga)
+        if raga_name not in utils.CLASS_NAMES:
+            #print(f'{raga_name} not in CLASS_NAMES')
+            continue
+        t, c, i = infer(model, raga_name, raga, device)
+        #print(f'Raga {raga_name} -> total_frames={t}, correct_frames={c}, incorrect={i}, percent_correct={c/t}')
+        output['ragas'][raga_name] = {
+            'total_frames': t,
+            'correct_frames': c,
+            'incorrect_frames': i,
+            'percent_correct': c/t
+        }
+    return output
     
         
 
@@ -95,7 +132,7 @@ def get_subdirectories(root_dir):
 
 if __name__ == '__main__':
     stoi, itos, vocab_size = utils.get_tokenizer()
-    raga_map = utils.get_classes()
+    #raga_map = utils.get_classes()
 
     # Model
     in_channels = 1  # Input channels (e.g., single-channel audio)
@@ -113,35 +150,51 @@ if __name__ == '__main__':
     #lr = 0.001
     #epochs = 0
     device = 'cuda:0'
-    model = ConvNet_1D(in_channels, out_channels, kernel_size, n_embd, n_tokens, device='cuda:0')
-    #model = LSTMNet(out_channels, n_embd, n_tokens, hidden_size, num_layers, device='cuda:0', dropout=0.1)
+    MODEL_PATH = './models/cnn-1-adam-1e4'
+    epochs = list(range(100000, 200001, 10000))
+    futures = {}
+    results = {}
+    max_workers = 16
+    mp.set_start_method('spawn')
+    with ProcessPoolExecutor(max_workers=max_workers) as executor:
+        for ep in epochs:
+            path = MODEL_PATH + '-epochs-[' + str(ep) + ']'
+            #model = LSTMNet(out_channels, n_embd, n_tokens, hidden_size, num_layers, device='cuda:0', dropout=0.1)
+            model = ConvNet_1D(in_channels, out_channels, kernel_size, n_embd, n_tokens, device='cuda:0')
+            futures[executor.submit(infer_model, path, model, device)] = path
+        
+        
+        for f in as_completed(futures):
+            p = futures[f]
+            try:
+                result = f.result()
+                results[p] = result
+                #print(result)
+            except Exception as e:
+                print(f"Exception for {p}: {e}")
+    with open("recorded-inference.txt", 'w') as outfile:
+        pprint.pprint(results, stream=outfile, indent=4)
 
-    MODEL_PATH = './models/cnn-1-adam-1e3-epochs-[230000]'
-    checkpoint = torch.load(MODEL_PATH)
-    epochs = checkpoint['epochs']
-    train_loss = checkpoint['train_loss']
-    val_loss = checkpoint['val_loss']
-    print(f'checkpoint after epoch: {epochs}')
-    print(f'train loss: {train_loss}')
-    print(f'val loss: {val_loss}')
-    model.load_state_dict(checkpoint['model_state_dict'])
-    model.eval()
-    #model.share_memory()  # Share the model on CPU
+    
+    # checkpoint = torch.load(MODEL_PATH)
+    # epochs = checkpoint['epochs']
+    # train_loss = checkpoint['train_loss']
+    # val_loss = checkpoint['val_loss']
+    # print(f'checkpoint after epoch: {epochs}')
+    # print(f'train loss: {train_loss}')
+    # print(f'val loss: {val_loss}')
+    # model.load_state_dict(checkpoint['model_state_dict'])
+    # model.eval()
+    # #model.share_memory()  # Share the model on CPU
 
-    processes = []
-    input_dir = "../data/simple-test/test"
-    ragas = get_subdirectories(input_dir)
-    print(ragas)
-    for raga in ragas:
-        raga_name = os.path.basename(raga)
-        if raga_name not in utils.CLASS_NAMES:
-            print(f'{raga_name} not in CLASS_NAMES')
-            continue
-        #p = mp.Process(target=infer, args=(model, raga_name, raga))
-        t, c, i = infer(model, raga_name, raga, device)
-        print(f'Raga {raga_name} -> total_frames={t}, correct_frames={c}, incorrect={i}, percent_correct={c/t}')
-        #p.start()
-        #processes.append(p)
-
-    #for p in processes:
-    #    p.join()
+    # processes = []
+    # input_dir = "../data/simple-test/test"
+    # ragas = get_subdirectories(input_dir)
+    # print(ragas)
+    # for raga in ragas:
+    #     raga_name = os.path.basename(raga)
+    #     if raga_name not in utils.CLASS_NAMES:
+    #         print(f'{raga_name} not in CLASS_NAMES')
+    #         continue
+    #     t, c, i = infer(model, raga_name, raga, device)
+    #     print(f'Raga {raga_name} -> total_frames={t}, correct_frames={c}, incorrect={i}, percent_correct={c/t}')
