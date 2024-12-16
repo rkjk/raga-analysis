@@ -6,10 +6,13 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 import pprint
 import librosa
 
-from model.cnn1d import *
+from model.cnn1d_adaptive import *
 from model.lstm1 import *
 from pyin_pitch_detect import *
 import utils
+
+NUM_SECONDS = 10
+BLOCK_SIZE = 87 * NUM_SECONDS + 90
 
 def infer(model, raga_name, raga_path, device):
     # Training code here
@@ -19,8 +22,8 @@ def infer(model, raga_name, raga_path, device):
     raga_map = utils.get_classes()
 
     def pad_with_not_voice(buf):
-        if len(buf) < 2700:
-            for _ in range(2700 - len(buf)):
+        if len(buf) < BLOCK_SIZE:
+            for _ in range(BLOCK_SIZE - len(buf)):
                 buf.append(stoi[utils.NOT_VOICE_TOKEN])
         return buf
 
@@ -50,20 +53,20 @@ def infer(model, raga_name, raga_path, device):
         #music_pitches = pad_with_not_voice(music_pitches)
         music_pitches = [p for p in music_pitches if p != utils.NOT_VOICE_TOKEN]
         music_pitches = [stoi[x] for x in music_pitches]
-        #print(f'Length: {len(music_pitches)} NumFrames: {len(music_pitches) // 2700}')  
+        #print(f'Length: {len(music_pitches)} NumFrames: {len(music_pitches) // BLOCK_SIZE}')  
         i = 0
         frame = 0
 
         while i < len(music_pitches):
             total_frames += 1
             data = None
-            if i + 2700 < len(music_pitches):
-                data = music_pitches[i:i+2700]
+            if i + BLOCK_SIZE < len(music_pitches):
+                data = music_pitches[i:i+BLOCK_SIZE]
             else:
                 #data = pad_with_not_voice(music_pitches[i:])
                 total_frames -= 1
                 break
-            i += 2700
+            i += BLOCK_SIZE
             not_voice_count = data.count(0)
             if not_voice_count > 0:
                 print(f'File: {f} -> Prediction: NOT_VOICE. Count {not_voice_count}')
@@ -150,11 +153,11 @@ if __name__ == '__main__':
     #lr = 0.001
     #epochs = 0
     device = 'cuda:0'
-    MODEL_PATH = './models/cnn-1-adam-1e4'
-    epochs = list(range(100000, 200001, 10000))
+    MODEL_PATH = './models/cnn-2-block-size-10-sec'
+    epochs = list(range(360000, 400001, 10000))
     futures = {}
     results = {}
-    max_workers = 16
+    max_workers = 8
     mp.set_start_method('spawn')
     with ProcessPoolExecutor(max_workers=max_workers) as executor:
         for ep in epochs:
