@@ -8,7 +8,9 @@ BLOCK_SIZE = 87 * 30 + 90
 # CLASS NAMES - NOTE: Do not change numbering.
 CLASS_NAMES = {
     'saveri': 0,
-    'hemavati': 1
+    'hemavati': 1,
+    'thodi': 2,
+    'sindhubhairavi': 3
 }
 
 def get_current_time_microseconds():

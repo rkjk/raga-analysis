@@ -139,7 +139,7 @@ if __name__ == '__main__':
 
     # Model
     in_channels = 1  # Input channels (e.g., single-channel audio)
-    out_channels = 2  # Output channels (e.g., regression output)
+    out_channels = len(utils.CLASS_NAMES)  # Output channels (e.g., regression output)
     kernel_size = 3   # Kernel size
     stride = 1       # Stride
     padding = 0      # Padding
@@ -153,8 +153,8 @@ if __name__ == '__main__':
     #lr = 0.001
     #epochs = 0
     device = 'cuda:0'
-    MODEL_PATH = './models/cnn-2-block-size-10-sec'
-    epochs = list(range(360000, 400001, 10000))
+    MODEL_PATH = './models/cnn-4-ragas-1'
+    epochs = list(range(10000, 70001, 10000))
     futures = {}
     results = {}
     max_workers = 8

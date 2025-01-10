@@ -51,7 +51,6 @@ class TestPYIN:
         pitches, voiced_flag, voiced_prob = pyin.detect(audio)
 
         timestamps = get_timestamps(pitches, HOP_LENGTH, RATE)
-
         music_pitches = []
         music_probs = []
         for i in range(len(pitches)):
@@ -84,6 +83,40 @@ class TestPYIN:
         #sf.write(outfile, shifted, sr)
 
     #@pytest.mark.skip(reason="Temporarily disabled for demonstration purposes")
+    def test_stereo(self):
+        RATE = 44100
+        FRAME_LENGTH = 2048
+        HOP_LENGTH = 512
+        audio1, sr = librosa.load('../data/simple-test/input/saveri/nedunuri-amma-nannubrovave.mp3', sr=44100)
+        audio2, sr = librosa.load('../data/simple-test/input/saveri/nedunuri-amma-nannubrovave.mp3', sr=44100, mono=False)
+        pyin = PYINPitchDetect(sr, frame_length=FRAME_LENGTH, hop_length=HOP_LENGTH)
+
+        #timestamps = get_timestamps(pitches1, HOP_LENGTH, RATE)
+        pitches1, voiced_flag1, voiced_prob1 = pyin.detect(audio1)
+        pitches2, voiced_flag2, voiced_prob2 = pyin.detect(audio2)
+        print(f'Pitches1: {pitches1.shape}')
+        print(f'Pitches2: {pitches2.shape}')
+        diff = 0
+        same = 0
+        not_voice = 0
+        for i in range(len(pitches1)):
+            #print(i)
+            if voiced_flag1[i] and voiced_prob1[i] > 0.5:
+                note1 = librosa.hz_to_note(pitches2[0][i]).replace('♯', '#')
+                note2 = librosa.hz_to_note(pitches2[1][i]).replace('♯', '#')
+                #print(f'note1: {note1}, {note2}')
+                if note1 != note2:
+                    diff += 1
+                else:
+                    same += 1
+            else:
+                not_voice += 1
+        print(f'On stereo: same {same}, diff {diff} not voice {not_voice}')
+        #with open("tests/test_mono.txt", "w") as f, open("tests/test_stereo.txt", "w") as g:
+        #    for i in range(len(pitches1)):
+                
+
+    @pytest.mark.skip(reason="Temporarily disabled for demonstration purposes")
     def test_pitch_change(self):
         RATE = 44100
         FRAME_LENGTH = 2048

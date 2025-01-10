@@ -13,7 +13,7 @@ import torch
 from pyin_pitch_detect import *
 import utils
 
-from model.cnn1d import ConvNet_1D
+from model.cnn1d_adaptive import ConvNet_1D
 
 audio_queue = Queue()
 
@@ -23,6 +23,9 @@ import torch.nn.functional as F
 # Tokenizer
 stoi, itos, vocab_size = utils.get_tokenizer()
 raga_map = utils.get_classes()
+NUM_SECONDS = 10
+BLOCK_SIZE = 87 * NUM_SECONDS + 90
+NOISE_WINDOW_SIZE = 10
 
 def process_audio():
     chunk_size = utils.SAMPLE_RATE  # 30 seconds of audio
@@ -34,18 +37,18 @@ def process_audio():
 
     # Model
     in_channels = 1  # Input channels (e.g., single-channel audio)
-    out_channels = 2  # Output channels (e.g., regression output)
+    out_channels = len(utils.CLASS_NAMES)  # Output channels (e.g., regression output)
     kernel_size = 3   # Kernel size
     stride = 1       # Stride
     padding = 0      # Padding
     n_tokens = vocab_size
     n_embd = 8
 
+    device = 'cuda:0'
     # Learning rate
-    lr = 0.001
     epochs = 0
-    model = ConvNet_1D(in_channels, out_channels, kernel_size, n_embd, n_tokens, device='cpu')
-    MODEL_PATH = './models/simple-test-model'
+    model = ConvNet_1D(in_channels, out_channels, kernel_size, n_embd, n_tokens, device=device)
+    MODEL_PATH = './models/cnn-4-ragas-1-epochs-[10000]'
     checkpoint = torch.load(MODEL_PATH)
     epochs = checkpoint['epochs']
     train_loss = checkpoint['train_loss']
@@ -66,33 +69,33 @@ def process_audio():
                 print(f'Not enough data')
                 time.sleep(0.1)
                 continue
-        # Process the 30-second chunk
+        # Process the BLOCK_SIZEd chunk
         pitches, voiced_flag, voiced_prob = pitch_detector.detect(np.array(buffer))
         buffer = []
         for i in range(len(pitches)):
             svara = utils.NOT_VOICE_TOKEN
             if voiced_flag[i] and voiced_prob[i] > 0.5:
                 svara = librosa.hz_to_note(pitches[i]).replace('♯', '#')
-            music_pitches.append(svara)
+            if svara != utils.NOT_VOICE_TOKEN:
+                music_pitches.append(svara)
         prev_data = None
-        print(f'len of data: {len(music_pitches)}')
-        if len(music_pitches) >= 2700:
-            data = music_pitches[:2700]
-            music_pitches = music_pitches[2700:]
+        #print(f'len of data: {len(music_pitches)}')
+        if len(music_pitches) >= BLOCK_SIZE:
+            data = music_pitches[:BLOCK_SIZE]
+            music_pitches = music_pitches[BLOCK_SIZE:]
             prev_data = data
             data = [stoi[t] for t in data]
             not_voice_count = data.count(0)
-            if not_voice_count >= 2600:
-                print(f'Prediction: NOT_VOICE. Count {not_voice_count}')
-                continue
-            print(data)
+            #print(data)
             with torch.no_grad():
-                data = torch.tensor(data).view(1,-1)
+                data = torch.tensor(data).view(1,-1).to(device)
                 logits = model(data)
                 probabilities = torch.softmax(logits, dim=1)
                 print(f'probs: {probabilities}')
                 max_prob, max_index = logits.max(dim=1)
                 print(f'Prediction: {raga_map[max_index.item()]}, prediction_prob: {max_prob}')
+        else:
+            print(f'Accumulating data: {(len(music_pitches) * 1.0 / BLOCK_SIZE) * 100}', end='\r')
         #print(f'Processed chunk. Pitches len {pitches.shape}, {len(voiced_flag)}, {len(voiced_prob)}')
 
 def capture_audio():
