@@ -134,17 +134,19 @@ class TestPYIN:
         timestamps = get_timestamps(pitches, HOP_LENGTH, RATE)
 
         sound_pitches = []
+        unvoice_prob = []
 
         NAN = librosa.midi_to_hz(21)
+        VOICE_PROB_THRESHOLD = 0.3
         for i in range(len(pitches)):
-            if voiced_flag[i]:
+            if voiced_prob[i] > VOICE_PROB_THRESHOLD:
                 sound_pitches.append(pitches[i])
             else:
                 sound_pitches.append(NAN) # Corresponds to MIDI number 21
 
         midi = librosa.hz_to_midi(sound_pitches)
         midi_cents = np.round([m * 100 for m in midi])
-        mask = midi_cents > 4300
+        mask = midi_cents < 3700
 
         total_masked = sum(mask)
         print(f'Number of masked={sum(mask)}')
@@ -187,7 +189,6 @@ class TestPYIN:
                     backgroundcolor=(1,1,1,0.7))
 
         ax2 = ax.twinx()
-        VOICE_PROB_THRESHOLD = 0.5
         mask2 = voiced_prob >= VOICE_PROB_THRESHOLD
         mask2 = mask2 & mask
         print(f'Percentage voiced_prob above : {sum(mask2) * 100.0 / total_masked}')
