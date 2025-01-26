@@ -1,5 +1,5 @@
 #!/bin/bash
 
 source venv/bin/activate
-pytest -rP
+pytest -rP tests/pyin_test.py
 deactivate

@@ -10,6 +10,8 @@ import noisereduce as nr
 import soundfile as sf
 import concurrent.futures
 
+import matplotlib.pyplot as plt
+
 import pytest
 
 seshu_map = {
@@ -82,7 +84,7 @@ class TestPYIN:
         print(f'generated pitches for {outfile}')
         #sf.write(outfile, shifted, sr)
 
-    #@pytest.mark.skip(reason="Temporarily disabled for demonstration purposes")
+    @pytest.mark.skip(reason="Temporarily disabled for demonstration purposes")
     def test_stereo(self):
         RATE = 44100
         FRAME_LENGTH = 2048
@@ -115,6 +117,99 @@ class TestPYIN:
         #with open("tests/test_mono.txt", "w") as f, open("tests/test_stereo.txt", "w") as g:
         #    for i in range(len(pitches1)):
                 
+
+    #@pytest.mark.skip(reason="Temporarily disabled for demonstration purposes")
+    def test_midi(self):
+        RATE = 44100
+        FRAME_LENGTH = 2048
+        HOP_LENGTH = 512
+
+        duration = 40.0
+        #audio, sr = librosa.load('../data/TN Seshagopalan - Saveri Alapana [QDw-jpTw3Q4].wav', sr=44100, duration=duration)
+        audio, sr = librosa.load('../data/simple-test/thodi-vittal-rangan.mp3', sr=44100, duration=duration)
+
+        pyin = PYINPitchDetect(sr, frame_length=FRAME_LENGTH, hop_length=HOP_LENGTH)
+
+        pitches, voiced_flag, voiced_prob = pyin.detect(audio)
+        timestamps = get_timestamps(pitches, HOP_LENGTH, RATE)
+
+        sound_pitches = []
+
+        NAN = librosa.midi_to_hz(21)
+        for i in range(len(pitches)):
+            if voiced_flag[i]:
+                sound_pitches.append(pitches[i])
+            else:
+                sound_pitches.append(NAN) # Corresponds to MIDI number 21
+
+        midi = librosa.hz_to_midi(sound_pitches)
+        midi_cents = np.round([m * 100 for m in midi])
+        mask = midi_cents > 4300
+        print(f'Number of masked={sum(mask == True)}')
+        #print(f'pitches shape: {sound_pitches.shape}, midi shape: {midi.shape}')
+        #print(f'pitches: {sound_pitches}')
+
+        plt.figure(figsize=(15, 8))
+        ax = plt.gca()
+        xaxis = np.linspace(0, duration, len(midi_cents))
+        plt.plot(xaxis[mask], midi_cents[mask], color='b', alpha=0.7, label='Pitch Contour')  # Multiply by 100
+        # Set axis limits
+        plt.ylim(3700, 8400)  # C#2 (3700) to C6 (8400)
+        plt.xlim(0, round(duration))
+
+        swara_map = {
+            # Lower Octave (C#2-B2)
+            3700: ('C#2', 'Sa'), 3800: ('D2', 'Ri1'), 3900: ('D#2', 'Ri2'), 4000: ('E2', 'Ga2'),
+            4100: ('F2', 'Ga3'), 4200: ('F#2', 'Ma1'), 4300: ('G2', 'Ma2'), 4400: ('G#2', 'Pa'),
+            4500: ('A2', 'Da1'), 4600: ('A#2', 'Da2'), 4700: ('B2', 'Ni2'), 4800: ('C3', 'Ni3'),
+    
+            # Middle Octave (C#3-B3)
+            4900: ('C#3', 'Sa'), 5000: ('D3', 'Ri1'), 5100: ('D#3', 'Ri2'), 5200: ('E3', 'Ga2'),
+            5300: ('F3', 'Ga3'), 5400: ('F#3', 'Ma1'), 5500: ('G3', 'Ma2'), 5600: ('G#3', 'Pa'),
+            5700: ('A3', 'Da1'), 5800: ('A#3', 'Da2'), 5900: ('B3', 'Ni2'), 6000: ('C4', 'Ni3'),
+            
+            # Upper Octave (C#4-B4)
+            6100: ('C#4', 'Sa'), 6200: ('D4', 'Ri1'), 6300: ('D#4', 'Ri2'), 6400: ('E4', 'Ga2'),
+            6500: ('F4', 'Ga3'), 6600: ('F#4', 'Ma1'), 6700: ('G4', 'Ma2'), 6800: ('G#4', 'Pa'),
+            6900: ('A4', 'Da1'), 7000: ('A#4', 'Da2'), 7100: ('B4', 'Ni2'), 7200: ('C5', 'Ni3'),
+            
+            # Higher Octaves (C#5-C6)
+            7300: ('C#5', 'Sa'),
+        }
+
+        # Add horizontal lines and labels for each swara
+        for midicent, (note, swara) in swara_map.items():
+            plt.axhline(y=midicent, color='gray', linestyle='--', alpha=0.3)
+            plt.text(0.5, midicent+20, f'{swara} ({note})',  # Adjusted text position
+                    ha='left', va='bottom', color='darkred', fontsize=9,
+                    backgroundcolor=(1,1,1,0.7))
+
+        
+        # Formatting
+        plt.ylabel('MIDI Cents (100× semitone)')
+        plt.xlabel('Time (seconds)')
+        plt.title('Carnatic Swara Annotations with C# as Sa')
+        plt.grid(True, which='both', axis='y', alpha=0.5)
+        plt.xticks(np.arange(0, round(duration) + 1, 5))
+
+        # Add octave labels on right side
+        # octave_labels = {
+        #     3700: 'C#2', 
+        #     4900: 'C#3', 
+        #     6100: 'C#4', 
+        #     7300: 'C#5',
+        #     8400: 'C6'
+        # }
+
+        # for pos, label in octave_labels.items():
+        #     plt.text(30.2, pos, f'{label} Octave', 
+        #             rotation=90, va='center', color='darkgreen')
+
+        plt.tight_layout()
+        plt.show()
+        #with open("tests/test_midi.txt", "w") as f, open("tests/test_stereo.txt", "w") as g:
+        #    for i in range(len(pitches1)):
+
 
     @pytest.mark.skip(reason="Temporarily disabled for demonstration purposes")
     def test_pitch_change(self):
