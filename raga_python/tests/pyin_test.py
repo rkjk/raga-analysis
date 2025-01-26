@@ -124,9 +124,9 @@ class TestPYIN:
         FRAME_LENGTH = 2048
         HOP_LENGTH = 512
 
-        duration = 40.0
-        #audio, sr = librosa.load('../data/TN Seshagopalan - Saveri Alapana [QDw-jpTw3Q4].wav', sr=44100, duration=duration)
-        audio, sr = librosa.load('../data/simple-test/thodi-vittal-rangan.mp3', sr=44100, duration=duration)
+        duration = 1000.0
+        audio, sr = librosa.load('../data/TN Seshagopalan - Saveri Alapana [QDw-jpTw3Q4].wav', sr=44100, duration=duration)
+        #audio, sr = librosa.load('../data/simple-test/thodi-vittal-rangan.mp3', sr=44100, duration=duration)
 
         pyin = PYINPitchDetect(sr, frame_length=FRAME_LENGTH, hop_length=HOP_LENGTH)
 
@@ -145,17 +145,19 @@ class TestPYIN:
         midi = librosa.hz_to_midi(sound_pitches)
         midi_cents = np.round([m * 100 for m in midi])
         mask = midi_cents > 4300
-        print(f'Number of masked={sum(mask == True)}')
+
+        total_masked = sum(mask)
+        print(f'Number of masked={sum(mask)}')
         #print(f'pitches shape: {sound_pitches.shape}, midi shape: {midi.shape}')
         #print(f'pitches: {sound_pitches}')
 
         plt.figure(figsize=(15, 8))
         ax = plt.gca()
         xaxis = np.linspace(0, duration, len(midi_cents))
-        plt.plot(xaxis[mask], midi_cents[mask], color='b', alpha=0.7, label='Pitch Contour')  # Multiply by 100
+        ax.plot(xaxis[mask], midi_cents[mask], color='b', alpha=0.7, label='Pitch Contour')  # Multiply by 100
         # Set axis limits
-        plt.ylim(3700, 8400)  # C#2 (3700) to C6 (8400)
-        plt.xlim(0, round(duration))
+        ax.set_ylim(3700, 8400)  # C#2 (3700) to C6 (8400)
+        ax.set_xlim(0, round(duration))
 
         swara_map = {
             # Lower Octave (C#2-B2)
@@ -179,18 +181,30 @@ class TestPYIN:
 
         # Add horizontal lines and labels for each swara
         for midicent, (note, swara) in swara_map.items():
-            plt.axhline(y=midicent, color='gray', linestyle='--', alpha=0.3)
-            plt.text(0.5, midicent+20, f'{swara} ({note})',  # Adjusted text position
+            ax.axhline(y=midicent, color='gray', linestyle='--', alpha=0.3)
+            ax.text(0.5, midicent+20, f'{swara} ({note})',  # Adjusted text position
                     ha='left', va='bottom', color='darkred', fontsize=9,
                     backgroundcolor=(1,1,1,0.7))
 
+        ax2 = ax.twinx()
+        VOICE_PROB_THRESHOLD = 0.5
+        mask2 = voiced_prob >= VOICE_PROB_THRESHOLD
+        mask2 = mask2 & mask
+        print(f'Percentage voiced_prob above : {sum(mask2) * 100.0 / total_masked}')
+        ax2.plot(xaxis[mask2], voiced_prob[mask2], color='r', alpha=0.5, label='Voiced Probability')
+        ax2.set_ylim(0, 1)
+        ax2.set_ylabel('Voiced Probability')
+
+        lines, labels = ax.get_legend_handles_labels()
+        lines2, labels2 = ax2.get_legend_handles_labels()
+        ax.legend(lines + lines2, labels + labels2, loc='upper left')
         
         # Formatting
-        plt.ylabel('MIDI Cents (100× semitone)')
-        plt.xlabel('Time (seconds)')
-        plt.title('Carnatic Swara Annotations with C# as Sa')
-        plt.grid(True, which='both', axis='y', alpha=0.5)
-        plt.xticks(np.arange(0, round(duration) + 1, 5))
+        #ax.set_ylabel('MIDI Cents (100× semitone)')
+        #ax.set_xlabel('Time (seconds)')
+        #ax.title('Carnatic Swara Annotations with C# as Sa')
+        ax.grid(True, which='both', axis='y', alpha=0.5)
+        ax.set_xticks(np.arange(0, round(duration) + 1, 5))
 
         # Add octave labels on right side
         # octave_labels = {
