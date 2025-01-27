@@ -9,6 +9,7 @@ from numpy import argmax
 import noisereduce as nr
 import soundfile as sf
 import concurrent.futures
+import math
 
 import matplotlib.pyplot as plt
 
@@ -124,7 +125,7 @@ class TestPYIN:
         FRAME_LENGTH = 2048
         HOP_LENGTH = 512
 
-        duration = 1000.0
+        duration = 10.0
         audio, sr = librosa.load('../data/TN Seshagopalan - Saveri Alapana [QDw-jpTw3Q4].wav', sr=44100, duration=duration)
         #audio, sr = librosa.load('../data/simple-test/thodi-vittal-rangan.mp3', sr=44100, duration=duration)
 
@@ -139,13 +140,16 @@ class TestPYIN:
         NAN = librosa.midi_to_hz(21)
         VOICE_PROB_THRESHOLD = 0.3
         for i in range(len(pitches)):
-            if voiced_prob[i] > VOICE_PROB_THRESHOLD:
+            if voiced_prob[i] > VOICE_PROB_THRESHOLD and not math.isnan(pitches[i]):
                 sound_pitches.append(pitches[i])
             else:
                 sound_pitches.append(NAN) # Corresponds to MIDI number 21
-
+        print(f'Pitches: {sound_pitches}')
         midi = librosa.hz_to_midi(sound_pitches)
+        print(f'After midi conversion: {midi}')
         midi_cents = np.round([m * 100 for m in midi])
+        print(f'midi_cents: {midi_cents}')
+        return
         mask = midi_cents < 3700
 
         total_masked = sum(mask)

@@ -4,9 +4,11 @@ import csv
 import argparse
 from dataclasses import dataclass
 import time
+import math
 
 import librosa
 from numpy import argmax, arange
+import numpy
 
 #from pyin_pitch_detect import *
 
@@ -67,7 +69,7 @@ class ConcurrentDatasetBuilder:
         self.input_dir = input_dir
         self.output_dir = output_dir
         if max_workers is not None:
-            self.max_workers = max_workers
+            self.max_workers = int(max_workers)
         else:
             self.max_workers = 8
         #self.executor = concurrent.futures.ProcessPoolExecutor(max_workers=self.max_workers)
@@ -128,18 +130,27 @@ class ConcurrentDatasetBuilder:
             music_pitches = []
             music_probs = []
             for i in range(len(pitches)):
-                timestamp = timestamps[i]
-                svara = NOT_VOICE_TOKEN
-                if voiced_flag[i] and voiced_prob[i] > 0.5:
-                    svara = librosa.hz_to_note(pitches[i]).replace('♯', '#')
-                music_pitches.append((timestamp, voiced_prob[i], svara))
+                #svara = NOT_VOICE_TOKEN
+                svara = librosa.midi_to_hz(21)
+                if voiced_prob[i] >= 0.3 and not math.isnan(pitches[i]) and not math.isinf(pitches[i]):
+                    svara = pitches[i]
+                music_pitches.append(svara)
+                music_probs.append(voiced_prob[i])
+            #print(f'{output_file_relative_path}: Collected valid voice tokens')
+            midi = librosa.hz_to_midi(music_pitches)
+            #print(f'{output_file_relative_path}: Converted to midi')
+            midi_cents = numpy.round([m * 100 for m in midi])
+            midi_cents = [int(m) for m in midi_cents]
+            #print(f'{output_file_relative_path}: Rounded to nearest integer')
+
+            concat_items = zip(timestamps, music_probs, midi_cents)
             
             #print(f'Writing to {output_file_relative_path}')
             if not dry_run:
                 directory_path = os.path.dirname(output_file_relative_path)
                 os.makedirs(directory_path, exist_ok=True)
                 with open(output_file_relative_path, 'w') as f:
-                    f.writelines([str(round(item[0], 3)) + ',' + str(round(item[1], 3)) + "," + item[2] + "\n" for item in music_pitches])
+                    f.writelines([str(round(item[0], 3)) + ',' + str(round(item[1], 3)) + "," + str(item[2]) + "\n" for item in concat_items])
                     f.write(END_OF_FILE_TOKEN)
                     print(f'SUCCESS: Written to {output_file_relative_path}')
             return True
