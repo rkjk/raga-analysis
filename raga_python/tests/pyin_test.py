@@ -1,6 +1,7 @@
 from src.pyin_pitch_detect import *
 from src.chroma_detect import *
 from src.utils import *
+import src.music_detection_utils as music_detection_utils
 
 import os
 import time
@@ -119,7 +120,7 @@ class TestPYIN:
         #    for i in range(len(pitches1)):
                 
 
-    #@pytest.mark.skip(reason="Temporarily disabled for demonstration purposes")
+    @pytest.mark.skip(reason="Temporarily disabled for demonstration purposes")
     def test_midi(self):
         RATE = 44100
         FRAME_LENGTH = 2048
@@ -228,6 +229,102 @@ class TestPYIN:
         plt.show()
         #with open("tests/test_midi.txt", "w") as f, open("tests/test_stereo.txt", "w") as g:
         #    for i in range(len(pitches1)):
+
+
+
+    @pytest.mark.skip(reason="Temporarily disabled for demonstration purposes")
+    def test_music_detection_rule_based(self):
+        RATE = 44100
+        FRAME_LENGTH = 2048
+        HOP_LENGTH = 512
+
+        music_percentage, speech_ranges, music_ranges = utils.detect_speech_music(
+            '../data/raga_comparison-saveri_and_malahari.mp3',
+            segment_duration=10,
+            output_path='tests/raga-comp-saveri-malahari-music-only.mp3'
+            )
+        print(f'Music Percentage: {music_percentage}')
+        print(f'Music: {music_ranges}')
+        print(f'Speech: {speech_ranges}')
+        music_percentage, speech_ranges, music_ranges = utils.detect_speech_music(
+            '../data/visweswaran-abhogi-class.mp3',
+            segment_duration=10,
+            output_path='tests/visweswaran-abhogi-class-music-only.mp3'
+            )
+        print(f'Music Percentage: {music_percentage}')
+        print(f'Music: {music_ranges}')
+        print(f'Speech: {speech_ranges}')
+        music_percentage, speech_ranges, music_ranges = utils.detect_speech_music(
+            '../data/sindhubhairavi-chari-sisters.mp3',
+            segment_duration=10,
+            output_path='tests/sindhubhairavi-chari-sisters.mp3-music-only.mp3'
+            )
+        print(f'Music Percentage: {music_percentage}')
+        print(f'Music: {music_ranges}')
+        print(f'Speech: {speech_ranges}')
+        music_percentage, speech_ranges, music_ranges = utils.detect_speech_music(
+            '../data/simple-test/input/saveri/arunasairam-muruga-muruga.mp3',
+            segment_duration=10,
+            output_path='tests/arunasairam-muruga-muruga-music-only.mp3'
+            )
+        print(f'Music Percentage: {music_percentage}')
+        print(f'Music: {music_ranges}')
+        print(f'Speech: {speech_ranges}')
+
+    #@pytest.mark.skip(reason="Temporarily disabled for demonstration purposes")
+    def test_music_detection_pann(self):
+        RATE = 44100
+        FRAME_LENGTH = 2048
+        HOP_LENGTH = 512
+
+        music_percentage, speech_ranges, music_ranges = music_detection_utils.detect_speech_music(
+            '../data/raga_comparison-saveri_and_malahari.mp3',
+            segment_duration=10,
+            output_path='tests/raga-comp-saveri-malahari-music-only.mp3'
+            )
+        print(f'Music Percentage: {music_percentage}')
+        print(f'Music: {music_ranges}')
+        print(f'Speech: {speech_ranges}')
+        music_percentage, speech_ranges, music_ranges = music_detection_utils.detect_speech_music(
+            '../data/simple-test/thodi-vittal-rangan.mp3',
+            segment_duration=10,
+            output_path='tests/thodi-vittal-rangan-music-only.mp3'
+            )
+        print(f'Music Percentage: {music_percentage}')
+        print(f'Music: {music_ranges}')
+        print(f'Speech: {speech_ranges}')
+        music_percentage, speech_ranges, music_ranges = music_detection_utils.detect_speech_music(
+            '../data/sai-giridhar-mridangam.wav',
+            segment_duration=10,
+            output_path='tests/sai-giridhar-mridangam-music-only.mp3'
+            )
+        print(f'Music Percentage: {music_percentage}')
+        print(f'Music: {music_ranges}')
+        print(f'Speech: {speech_ranges}')
+        music_percentage, speech_ranges, music_ranges = music_detection_utils.detect_speech_music(
+            '../data/visweswaran-abhogi-class.mp3',
+            segment_duration=10,
+            output_path='tests/visweswaran-abhogi-class-music-only.mp3'
+            )
+        print(f'Music Percentage: {music_percentage}')
+        print(f'Music: {music_ranges}')
+        print(f'Speech: {speech_ranges}')
+        music_percentage, speech_ranges, music_ranges = music_detection_utils.detect_speech_music(
+            '../data/sindhubhairavi-chari-sisters.mp3',
+            segment_duration=10,
+            output_path='tests/sindhubhairavi-chari-sisters.mp3-music-only.mp3'
+            )
+        print(f'Music Percentage: {music_percentage}')
+        print(f'Music: {music_ranges}')
+        print(f'Speech: {speech_ranges}')
+        music_percentage, speech_ranges, music_ranges = music_detection_utils.detect_speech_music(
+            '../data/simple-test/input/saveri/arunasairam-muruga-muruga.mp3',
+            segment_duration=10,
+            output_path='tests/arunasairam-muruga-muruga-music-only.mp3'
+            )
+        print(f'Music Percentage: {music_percentage}')
+        print(f'Music: {music_ranges}')
+        print(f'Speech: {speech_ranges}')
 
 
     @pytest.mark.skip(reason="Temporarily disabled for demonstration purposes")

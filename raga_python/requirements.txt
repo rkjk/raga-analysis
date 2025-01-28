@@ -5,3 +5,9 @@ pytest
 pytest-xdist
 noisereduce
 soundfile
+pydub
+torch
+torchaudio
+speechbrain
+tensorflow
+tensorflow_hub
