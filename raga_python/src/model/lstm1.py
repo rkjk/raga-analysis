@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class LSTMNet(nn.Module):
-    def __init__(self, out_channels, n_embd, n_tokens, hidden_size, num_layers, device='cpu', dropout=0.1):
+    def __init__(self, out_channels, n_embd, n_tokens, hidden_size, num_layers, device='cpu', bidirectional=False, dropout=0.1):
         super().__init__()
         self.out_channels = out_channels
         self.n_embd = n_embd
@@ -13,10 +13,17 @@ class LSTMNet(nn.Module):
         self.num_layers = num_layers
         self.dropout = dropout
         self.emb = nn.Embedding(n_tokens, n_embd, device=device)
-        self.lstm = nn.LSTM(input_size=n_embd, hidden_size=hidden_size, num_layers=num_layers, batch_first=True, dropout=dropout if num_layers > 1 else 0, device=device)
+        self.lstm = nn.LSTM(
+            input_size=n_embd, 
+            hidden_size=hidden_size, 
+            num_layers=num_layers, 
+            batch_first=True,
+            bidirectional=bidirectional,
+            dropout=dropout if num_layers > 1 else 0, 
+            device=device)
         self.task = nn.Sequential(
             nn.Dropout(dropout),
-            nn.Linear(hidden_size, 100, device=device),
+            nn.Linear(hidden_size * 2 if bidirectional else hidden_size, 100, device=device),
             nn.ReLU(),
             nn.Dropout(dropout),
             nn.Linear(100, out_channels, device=device)

@@ -9,5 +9,6 @@ pydub
 torch
 torchaudio
 speechbrain
-tensorflow
-tensorflow_hub
+demucs
+#tensorflow
+#tensorflow_hub

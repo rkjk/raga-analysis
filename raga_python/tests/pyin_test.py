@@ -120,116 +120,76 @@ class TestPYIN:
         #    for i in range(len(pitches1)):
                 
 
-    @pytest.mark.skip(reason="Temporarily disabled for demonstration purposes")
+    #@pytest.mark.skip(reason="Temporarily disabled for demonstration purposes")
     def test_midi(self):
         RATE = 44100
-        FRAME_LENGTH = 2048
-        HOP_LENGTH = 512
-
-        duration = 10.0
-        audio, sr = librosa.load('../data/TN Seshagopalan - Saveri Alapana [QDw-jpTw3Q4].wav', sr=44100, duration=duration)
-        #audio, sr = librosa.load('../data/simple-test/thodi-vittal-rangan.mp3', sr=44100, duration=duration)
-
+        FRAME_LENGTH = 1024
+        HOP_LENGTH = 256
+        duration = 23.0
+        audio, sr = librosa.load('../data/separated/htdemucs/raga-adum-chidambaramo-23sec/vocals.wav', sr=44100, duration=duration)
+        #audio, sr = librosa.load('../data/raga-adum-chidambaramo-23sec.mp3', sr=44100, duration=duration)
         pyin = PYINPitchDetect(sr, frame_length=FRAME_LENGTH, hop_length=HOP_LENGTH)
-
         pitches, voiced_flag, voiced_prob = pyin.detect(audio)
         timestamps = get_timestamps(pitches, HOP_LENGTH, RATE)
-
         sound_pitches = []
         unvoice_prob = []
-
         NAN = librosa.midi_to_hz(21)
         VOICE_PROB_THRESHOLD = 0.3
-        for i in range(len(pitches)):
-            if voiced_prob[i] > VOICE_PROB_THRESHOLD and not math.isnan(pitches[i]):
-                sound_pitches.append(pitches[i])
-            else:
-                sound_pitches.append(NAN) # Corresponds to MIDI number 21
-        print(f'Pitches: {sound_pitches}')
+        
+        # Only keep pitches where probability is above threshold
+        sound_pitches = [pitches[i] if voiced_prob[i] > VOICE_PROB_THRESHOLD and not math.isnan(pitches[i])
+                        else NAN for i in range(len(pitches))]
+                
         midi = librosa.hz_to_midi(sound_pitches)
-        print(f'After midi conversion: {midi}')
         midi_cents = np.round([m * 100 for m in midi])
-        print(f'midi_cents: {midi_cents}')
-        return
-        mask = midi_cents < 3700
-
+        
+        # Create combined mask for both pitch range and voice probability
+        mask = (midi_cents > 3700) & (voiced_prob >= VOICE_PROB_THRESHOLD)
         total_masked = sum(mask)
         print(f'Number of masked={sum(mask)}')
-        #print(f'pitches shape: {sound_pitches.shape}, midi shape: {midi.shape}')
-        #print(f'pitches: {sound_pitches}')
-
+        
         plt.figure(figsize=(15, 8))
         ax = plt.gca()
         xaxis = np.linspace(0, duration, len(midi_cents))
-        ax.plot(xaxis[mask], midi_cents[mask], color='b', alpha=0.7, label='Pitch Contour')  # Multiply by 100
-        # Set axis limits
-        ax.set_ylim(3700, 8400)  # C#2 (3700) to C6 (8400)
-        ax.set_xlim(0, round(duration))
-
-        swara_map = {
-            # Lower Octave (C#2-B2)
-            3700: ('C#2', 'Sa'), 3800: ('D2', 'Ri1'), 3900: ('D#2', 'Ri2'), 4000: ('E2', 'Ga2'),
-            4100: ('F2', 'Ga3'), 4200: ('F#2', 'Ma1'), 4300: ('G2', 'Ma2'), 4400: ('G#2', 'Pa'),
-            4500: ('A2', 'Da1'), 4600: ('A#2', 'Da2'), 4700: ('B2', 'Ni2'), 4800: ('C3', 'Ni3'),
-    
-            # Middle Octave (C#3-B3)
-            4900: ('C#3', 'Sa'), 5000: ('D3', 'Ri1'), 5100: ('D#3', 'Ri2'), 5200: ('E3', 'Ga2'),
-            5300: ('F3', 'Ga3'), 5400: ('F#3', 'Ma1'), 5500: ('G3', 'Ma2'), 5600: ('G#3', 'Pa'),
-            5700: ('A3', 'Da1'), 5800: ('A#3', 'Da2'), 5900: ('B3', 'Ni2'), 6000: ('C4', 'Ni3'),
-            
-            # Upper Octave (C#4-B4)
-            6100: ('C#4', 'Sa'), 6200: ('D4', 'Ri1'), 6300: ('D#4', 'Ri2'), 6400: ('E4', 'Ga2'),
-            6500: ('F4', 'Ga3'), 6600: ('F#4', 'Ma1'), 6700: ('G4', 'Ma2'), 6800: ('G#4', 'Pa'),
-            6900: ('A4', 'Da1'), 7000: ('A#4', 'Da2'), 7100: ('B4', 'Ni2'), 7200: ('C5', 'Ni3'),
-            
-            # Higher Octaves (C#5-C6)
-            7300: ('C#5', 'Sa'),
-        }
-
-        # Add horizontal lines and labels for each swara
-        for midicent, (note, swara) in swara_map.items():
-            ax.axhline(y=midicent, color='gray', linestyle='--', alpha=0.3)
-            ax.text(0.5, midicent+20, f'{swara} ({note})',  # Adjusted text position
-                    ha='left', va='bottom', color='darkred', fontsize=9,
-                    backgroundcolor=(1,1,1,0.7))
-
-        ax2 = ax.twinx()
-        mask2 = voiced_prob >= VOICE_PROB_THRESHOLD
-        mask2 = mask2 & mask
-        print(f'Percentage voiced_prob above : {sum(mask2) * 100.0 / total_masked}')
-        ax2.plot(xaxis[mask2], voiced_prob[mask2], color='r', alpha=0.5, label='Voiced Probability')
-        ax2.set_ylim(0, 1)
-        ax2.set_ylabel('Voiced Probability')
-
-        lines, labels = ax.get_legend_handles_labels()
-        lines2, labels2 = ax2.get_legend_handles_labels()
-        ax.legend(lines + lines2, labels + labels2, loc='upper left')
         
-        # Formatting
-        #ax.set_ylabel('MIDI Cents (100× semitone)')
-        #ax.set_xlabel('Time (seconds)')
-        #ax.title('Carnatic Swara Annotations with C# as Sa')
+        # Only plot points that meet both criteria
+        valid_mask = (midi_cents > 3700) & (voiced_prob >= VOICE_PROB_THRESHOLD)
+        ax.scatter(xaxis[valid_mask], 
+                midi_cents[valid_mask],
+                color='b',
+                alpha=0.7,
+                s=10,
+                label='Pitch Points')
+        
+        # Set axis limits
+        ax.set_ylim(3700, 8400)
+        yticks = np.arange(3700, 8401, 100)
+        carnatic_svaras_in_order = ["S", "R1", "R2/G1", "R3/G2", "G3", "M1", "M2", "P", "D1", "D2/N1", "D3/N2", "N3"]
+
+        start_tick = 4300  # Starting point for labeling -  G2 (G3 is RaGa's tonic here)
+        start_index = np.where(yticks == start_tick)[0][0]  # Find the index of the starting tick
+
+        yticklabels = []
+        label_index = 0
+
+        for tick in yticks:
+            if tick >= start_tick:
+                yticklabels.append(carnatic_svaras_in_order[label_index % len(carnatic_svaras_in_order)])  # Circular labeling
+                label_index += 1
+            else:
+                yticklabels.append('')
+        ax.set_yticks(yticks, yticklabels)
+        ax.set_xlim(0, round(duration))
+        
+        
+        lines, labels = ax.get_legend_handles_labels()
+        ax.legend(lines, labels, loc='upper left')
+        
         ax.grid(True, which='both', axis='y', alpha=0.5)
         ax.set_xticks(np.arange(0, round(duration) + 1, 5))
-
-        # Add octave labels on right side
-        # octave_labels = {
-        #     3700: 'C#2', 
-        #     4900: 'C#3', 
-        #     6100: 'C#4', 
-        #     7300: 'C#5',
-        #     8400: 'C6'
-        # }
-
-        # for pos, label in octave_labels.items():
-        #     plt.text(30.2, pos, f'{label} Octave', 
-        #             rotation=90, va='center', color='darkgreen')
-
+        
         plt.tight_layout()
         plt.show()
-        #with open("tests/test_midi.txt", "w") as f, open("tests/test_stereo.txt", "w") as g:
-        #    for i in range(len(pitches1)):
-
 
 
     @pytest.mark.skip(reason="Temporarily disabled for demonstration purposes")
@@ -271,7 +231,7 @@ class TestPYIN:
         print(f'Music: {music_ranges}')
         print(f'Speech: {speech_ranges}')
 
-    #@pytest.mark.skip(reason="Temporarily disabled for demonstration purposes")
+    @pytest.mark.skip(reason="Temporarily disabled for demonstration purposes")
     def test_music_detection_pann(self):
         RATE = 44100
         FRAME_LENGTH = 2048

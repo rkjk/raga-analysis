@@ -21,10 +21,10 @@ MIN_TOKEN = 3600
 MAX_TOKEN = 8400
 # CLASS NAMES - NOTE: Do not change numbering.
 CLASS_NAMES = {
-    'saveri': 0,
-    'hemavati': 1,
-    'thodi': 2,
-    'sindhubhairavi': 3
+    'saveri': 2,
+    'hemavati': 3,
+    'thodi': 0,
+    'sindhubhairavi': 1
 }
 
 def get_current_time_microseconds():
@@ -77,6 +77,8 @@ def get_tokenizer_midi():
         stoi[v] = counter
         itos[counter] = v
         counter += 1
+    stoi[NOT_VOICE_TOKEN_MIDI] = counter
+    itos[counter] = NOT_VOICE_TOKEN_MIDI
     return stoi, itos, len(stoi)
 
 def get_classes():
@@ -246,3 +248,28 @@ def detect_speech_music(file_path, segment_duration=10, output_path=None):
         print(f'Exception type: {exc_type}')
         print(f"Error processing file: {str(e)}")
         return None
+
+def get_midi_cent(freq):
+    return np.round(librosa.hz_to_midi(librosa.note_to_hz(freq)) * 100)
+
+
+def generate_midi_svara_map(note: str) -> dict:
+    note = note.strip()
+    n, octave = note[0], int(note[1])
+    western_notes_in_order = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
+    carnatic_svaras_in_order = ["S", "R1", "R2/G1", "R3/G2", "G3", "M1", "M2", "P", "D1", "D2/N1", "D3/N2", "N3"]
+    ind = western_notes_in_order.index(n)
+
+    notes_list = []
+    for o in [octave - 1, octave]:
+        prev_oct = [x + str(o) for x in western_notes_in_order[ind:]]
+        cur_oct = [x + str(o + 1) for x in western_notes_in_order[:ind]]
+        notes_list.extend(prev_oct + cur_oct)
+    
+    res_map = {}
+    svara_ind = 0
+    for n in notes_list:
+        midi_cent = get_midi_cent(n)
+        res_map[midi_cent] = (n, carnatic_svaras_in_order[svara_ind])
+        svara_ind = (svara_ind + 1) % len(carnatic_svaras_in_order)
+    return res_map

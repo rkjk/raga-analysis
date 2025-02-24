@@ -77,7 +77,9 @@ class ConcurrentDatasetBuilder:
         self.sr = sr
         self.frame_length = frame_length
         self.hop_length = hop_length
-        self.metadata = self.read_metadata_csvs(self.get_subdirectories(input_dir))
+        #self.metadata = self.read_metadata_csvs(self.get_subdirectories(input_dir))
+        #self.metadata = self.read_metadata_json_midis(self.get_subdirectories(input_dir))
+        self.metadata = self.read_metadata_json_vocals_demucs(self.get_subdirectories(input_dir))
     
     def get_metadata(self):
         return self.metadata
@@ -119,7 +121,7 @@ class ConcurrentDatasetBuilder:
             pitches, voiced_flag, voiced_prob = librosa.pyin(
                 audio,
                 fmin=librosa.note_to_hz('C2'), 
-                fmax=librosa.note_to_hz('B5'),
+                fmax=librosa.note_to_hz('C6'),
                 sr=44100,
                 frame_length=2048,
                 hop_length=512
@@ -163,13 +165,13 @@ class ConcurrentDatasetBuilder:
         try:
             start_time = time.time()
             audio, _ = librosa.load(raga_file_data.relative_path, sr=self.sr)
-            tonic_index = ALLOWED_TONICS.index(raga_file_data.tonic)
+            #tonic_index = ALLOWED_TONICS.index(raga_file_data.tonic)
             shift_tonics = []
             # Possible shift tonics - we use the semitones upto 3 higher amd 2 lower than current
             # As long as we don't go beyond B3 or below C3.
             for t in [-2,-1,1,2,3]:
-                if tonic_index + t >= 0 and tonic_index + t < len(ALLOWED_TONICS):
-                    shift_tonics.append(t)
+                #if tonic_index + t >= 0 and tonic_index + t < len(ALLOWED_TONICS):
+                shift_tonics.append(t)
 
             f_name = '_'.join([raga_file_data.file_name, raga_file_data.tonic])
             output_file_dir = os.path.join(self.output_dir, raga_file_data.raga_name)
@@ -205,6 +207,35 @@ class ConcurrentDatasetBuilder:
         for k, files in self.metadata.items():
             for f in files:
                 self.process_raga_file(f, dry_run=dry_run)
+
+    def process_raga_file_only(self, raga_file_data: RagaFileData, dry_run=False):
+        try:
+            start_time = time.time()
+            audio, _ = librosa.load(raga_file_data.relative_path, sr=self.sr)
+
+            f_name = '_'.join([raga_file_data.file_name, raga_file_data.tonic])
+            output_file_dir = os.path.join(self.output_dir, raga_file_data.raga_name)
+            output_file_path = os.path.join(output_file_dir, f_name)
+
+            if not self.check_file_exists(output_file_path):
+                ConcurrentDatasetBuilder.process_raga_file_helper(audio, output_file_path, dry_run)  # Directly call helper
+            else:
+                print(f'Skipping {output_file_path}')
+
+            print(f'Completed {raga_file_data.relative_path} in {int((time.time() - start_time) * 1000)} ms')
+
+        except Exception as ex:
+            err = f'Error processing file {raga_file_data.relative_path}: {ex}'
+            raise RuntimeError(err)
+
+    def process_all_parallel(self, dry_run):
+        with concurrent.futures.ProcessPoolExecutor(max_workers=self.max_workers) as executor:  # Use ThreadPoolExecutor
+            futures = [executor.submit(self.process_raga_file_only, f, dry_run) for files in self.metadata.values() for f in files]
+            for future in concurrent.futures.as_completed(futures):  # To handle exceptions if any
+                try:
+                    future.result()  # Get the result to raise any exceptions from the thread
+                except Exception as e:
+                    print(f"An error occurred in one of the threads: {e}")
 
 
     # get all subdirectories in a given directory
@@ -254,7 +285,84 @@ class ConcurrentDatasetBuilder:
                     result[raga_name] = res
             except Exception as e:
                 print(f"Error parsing metadata.csv in {subdirectory}: {e}")  
-        return result              
+        return result
+
+    def read_metadata_json_midis(self, subdirectories):
+        result = {}
+        for subdirectory in subdirectories:
+            metadata_path = os.path.join(subdirectory, 'metadata.json')
+            raga_name = os.path.basename(subdirectory)
+            
+            if not os.path.exists(metadata_path):
+                print(f"Warn: No metadata.json found in {subdirectory}.")
+                continue
+                
+            try:
+                # Find all MP3 files in the subdirectory
+                mp3_files = [f for f in os.listdir(subdirectory) if f.endswith('.mp3')]
+                
+                if not mp3_files:
+                    print(f"Warn: No MP3 files found in {subdirectory}. Skipping.")
+                    continue
+                    
+                res = []
+                for mp3_file in mp3_files:
+                    relative_path = os.path.join(subdirectory, mp3_file)
+                    file_name = ''.join(mp3_file.split('.')[:-1])
+                    
+                    res.append(RagaFileData(
+                        relative_path=relative_path,
+                        file_name=file_name,
+                        raga_name=raga_name,
+                        tonic="",  # Empty tonic as specified
+                        url=""     # Empty url as specified
+                    ))
+                
+                result[raga_name] = res
+                
+            except Exception as e:
+                print(f"Error processing directory {subdirectory}: {e}")
+                
+        return result 
+
+    def read_metadata_json_vocals_demucs(self, subdirectories):
+        result = {}
+        for subdirectory in subdirectories:
+            metadata_path = os.path.join(subdirectory, 'metadata.json')
+            raga_name = os.path.basename(subdirectory)
+            
+            if not os.path.exists(metadata_path):
+                print(f"Warn: No metadata.json found in {subdirectory}.")
+                continue
+            
+            subdirectory = os.path.join(subdirectory, "source-separated", "vocals")
+            try:
+                # Find all MP3 files in the subdirectory
+                mp3_files = [f for f in os.listdir(subdirectory) if f.endswith('.mp3')]
+                
+                if not mp3_files:
+                    print(f"Warn: No MP3 files found in {subdirectory}. Skipping.")
+                    continue
+                    
+                res = []
+                for mp3_file in mp3_files:
+                    relative_path = os.path.join(subdirectory, mp3_file)
+                    file_name = ''.join(mp3_file.split('.')[:-1])
+                    
+                    res.append(RagaFileData(
+                        relative_path=relative_path,
+                        file_name=file_name,
+                        raga_name=raga_name,
+                        tonic="",  # Empty tonic as specified
+                        url=""     # Empty url as specified
+                    ))
+                
+                result[raga_name] = res
+                
+            except Exception as e:
+                print(f"Error processing directory {subdirectory}: {e}")
+                
+        return result           
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Concurrent Dataset Builder')

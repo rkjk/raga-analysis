@@ -40,6 +40,13 @@ class ConvNet_1D(nn.Module):
             nn.AdaptiveMaxPool1d(3),
             nn.Dropout(dropout),
 
+            # nn.Conv1d(256, 256, kernel_size=kernel_size, device=device),
+            # nn.ReLU(),
+            # nn.BatchNorm1d(256, device=device),
+            # #nn.MaxPool1d(kernel_size=5),
+            # nn.AdaptiveMaxPool1d(3),
+            # nn.Dropout(dropout),
+
             nn.Flatten()
         )
 
